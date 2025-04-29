@@ -15,4 +15,14 @@ app.use(express.urlencoded({
 })) // data comes from urls 
 app.use(express.static("public"))
 app.use(cookieParser())
-export {app}
+
+
+//  import routes
+
+import userRouter  from "./routes/users.routes.js";
+
+app.use("/api/v1/users" , userRouter)
+
+
+
+export  { app }
