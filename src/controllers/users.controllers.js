@@ -237,8 +237,44 @@ const refershAccessToken = handler(async(req,res)=>{
         throw new ApiError(401, error?.message || "Invalid refresh token")
     }
 })
+
+
+
+// updating controllers 
+// updating password
+const updateCurrentPassword = handler(async(req,res)=>{
+    // access password by body
+    const {oldPassword,newPassword} = req.body
+
+    // use auth middleware and there giving req.user from where we can find user
+    const user = await User.findById(req.user._id)
+
+    // check oldPassword given is right or wrong acc to user saved in db
+    const isPasswordValid = await user.isPassWordCheck(oldPassword)
+
+    // is is password not valid
+    if (!isPasswordValid) {
+        throw new ApiError(400,"Invalid old Password")
+    }
+
+    //  now if old Password matches then save new password
+    user.password = newPassword
+    await user.save({validateBeforeSave: false})
+
+    // send response when password is saved
+
+    return res.status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {},
+            "Password changed successfully"
+        )
+    )
+})
 export { 
     registerUser,
     loginUser,
-    logoutUser 
+    logoutUser,
+    refershAccessToken
 }
