@@ -272,6 +272,50 @@ const updateCurrentPassword = handler(async(req,res)=>{
         )
     )
 })
+
+// get current user
+const getCurrentUser = asyncHandler(async(req, res) => {
+    return res
+    .status(200)
+    .json(new ApiResponse(
+        200,
+        req.user,
+        "User fetched successfully"
+    ))
+})
+
+
+// change details
+const changeCurrentDetails = handler(async(req,res)=>{
+    const {fullName,email} = req.body
+    // check if field are not empty
+    if (!(fullName || email)) {
+        throw new ApiError(400,"all Fields are required")
+    }
+
+    // now get the user from db using auth middleware req.user anf then chamge
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: { // using set to set new fields 
+                fullName, // we can use also fullName: fullName
+                email
+            }
+        },
+        {new: true} // setting new values
+    ).select("-password")
+
+
+    // now send the response
+    return res.status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {user},
+            "User Details Changed Successfully"
+        )
+    )
+})
 export { 
     registerUser,
     loginUser,
