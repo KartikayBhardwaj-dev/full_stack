@@ -4,6 +4,7 @@ import { User } from "../models/users.models.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import jwt from "jsonwebtoken"
+import mongoose from "mongoose"
 
 // creating general method to generate access and refresh token 
 const generateAccessTokenAndRefreshToken = async(userId) => {
@@ -274,7 +275,7 @@ const updateCurrentPassword = handler(async(req,res)=>{
 })
 
 // get current user
-const getCurrentUser = asyncHandler(async(req, res) => {
+const getCurrentUser = handler(async(req, res) => {
     return res
     .status(200)
     .json(new ApiResponse(
@@ -354,7 +355,7 @@ const updateAvatarFile = handler(async(req,res)=>{
 
 // update cover image
 
-const updateCoverImageFile = asyncHandler(async(req, res) => {
+const updateCoverImageFile = handler(async(req, res) => {
     const coverImageLocalPath = req.file?.path
 
     if (!coverImageLocalPath) {
@@ -389,9 +390,161 @@ const updateCoverImageFile = asyncHandler(async(req, res) => {
     )
 })
 
+// WRITTING PIPELINES
+
+// fetching user channel details
+const getUserChannelProfile = handler(async(req,res)=>{
+    // when user hit url we can get details from there
+    const {username} = req.params
+
+    if(!username?.trim()){
+        throw new ApiError(400,"Username Is missing")
+    }
+
+    // aggregate pipelines to count subscriber count and channel count 
+    const channel = await User.aggregate([
+        {
+            $match: {
+                username: username?.toLowerCase()
+            }
+        },
+        {   // lookup to find subscribers
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",    // id dekhke
+                foreignField: "channel",  // select channel 
+                as: "subscribers"
+            }
+        },
+        {
+            // lookup  to find channel 
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo"
+            }
+        },
+        {
+            // addfield operator to add both filds subscriber and subscribed to 
+            $addFields: {
+                // here we just make variables and count the things which want to 
+                subscriberCount: {
+                    $size: "$subscribers"
+                },
+                channelSubscribedToCount: {
+                    $size: "$subscribedTo"
+                },
+                // here checking if user is logged in so if user subscribed to channel or not
+                isSubscribed: {
+                    $cond: {
+                        if: {$in: [req.user?._id,"$subscribers.subscriber"]},
+                        then: true,
+                        else: false
+                    }
+                }
+            },
+            // project oprator projects only selected value
+            $project: {
+                fullName: 1,
+                username: 1,
+                subscribersCount: 1,
+                channelsSubscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1
+
+
+
+            }
+        }
+    ])
+    if(!channel?.length){
+        throw new ApiError(400,"channel does not exists")
+    }
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            channel[0],
+            "user channel fetched successfully"
+        )
+    )
+})
+
+// fetching watch history details
+
+const getWatchHistory = handler(async(req,res)=>{
+    //  to find watch histroy we need to get user
+    // we need to use match operator to check wheather id coming from frontend is same as in db or not
+    const user = User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user._id) // to make sure our string coming in req converted into mongo db objectid because pipelines code directly computed by mongo db 
+
+            }
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                // nested pipeline because video model has field owner which referes user so to make owner field
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner", // local field me user ko kya bolte h owner
+                            foreignField: "_id", // foreign field (user) me usko _id ,
+                            as: "owner",
+                            // nested pipeline to use project operator to project at owner
+                            pipeline: [
+                                {
+                                    $project: {
+                                        fullName: 1,
+                                        username: 1,
+                                        avatar: 1
+                                    }
+                                }
+                            ]
+                        } 
+                    },
+                    {
+                        $addFields: {
+                            owner: {
+                                $first: "$owner"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ])
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            user[0].watchHistory,
+            "Watch history fetched successfully"
+        )
+    )
+})
+
+
 export { 
     registerUser,
     loginUser,
     logoutUser,
-    refershAccessToken
+    refershAccessToken,
+    updateCurrentPassword,
+    getCurrentUser,
+    updateCurrentDetails,
+    updateAvatarFile,
+    updateCoverImageFile,
+    getUserChannelProfile,
+    getWatchHistory
 }
