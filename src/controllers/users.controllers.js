@@ -58,6 +58,7 @@ const registerUser = handler( async(req,res) =>{
         throw new ApiError(400,"Avatar file is required")
     }
     const avatar = await uploadOnCloudinary(avatarLocalPath)
+    console.log(avatar)
     const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
     if(!avatar){
@@ -119,7 +120,7 @@ console.log(existedUser);
 
     // if found then check password isPassWordCheck function returns boolean 
     const isPasswordValid = await existedUser.isPassWordCheck(password) // await because db is in another continent
-console.log("password");
+console.log(isPasswordValid);
 
     // if isPasswordValid false then user creaditials wrong
     if (!isPasswordValid){
@@ -188,7 +189,7 @@ const logoutUser = handler( async(req,res) => {
 
 // refreshing the access token
 
-const refershAccessToken = handler(async(req,res)=>{
+const refreshAccessToken = handler(async(req,res)=>{
     // access the resfresh token from cookies or body
     const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
     if (!incomingRefreshToken) {
@@ -245,6 +246,7 @@ const refershAccessToken = handler(async(req,res)=>{
 // updating password
 const updateCurrentPassword = handler(async(req,res)=>{
     // access password by body
+    log
     const {oldPassword,newPassword} = req.body
 
     // use auth middleware and there giving req.user from where we can find user
@@ -479,7 +481,7 @@ const getUserChannelProfile = handler(async(req,res)=>{
 const getWatchHistory = handler(async(req,res)=>{
     //  to find watch histroy we need to get user
     // we need to use match operator to check wheather id coming from frontend is same as in db or not
-    const user = User.aggregate([
+    const user = await User.aggregate([
         {
             $match: {
                 _id: new mongoose.Types.ObjectId(req.user._id) // to make sure our string coming in req converted into mongo db objectid because pipelines code directly computed by mongo db 
@@ -523,6 +525,8 @@ const getWatchHistory = handler(async(req,res)=>{
             }
         }
     ])
+    console.log(user);
+    
     return res
     .status(200)
     .json(
@@ -539,7 +543,7 @@ export {
     registerUser,
     loginUser,
     logoutUser,
-    refershAccessToken,
+    refreshAccessToken,
     updateCurrentPassword,
     getCurrentUser,
     updateCurrentDetails,
