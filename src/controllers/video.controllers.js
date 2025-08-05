@@ -14,6 +14,70 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 const getAllVideos = handler(async(req,res)=>{
     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
     
+    const matchStage = {
+        isPublished: true,
+        title: {$regex: query , $options: "i"}
+    }
+
+    const totalVideos = await Video.countDocuments(matchStage)
+
+    const Pipeline = [
+        {$match: matchStage},
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [
+                    {
+                        $project: {
+                            fullname: 1,
+                            username: 1,
+                            avatar: 1
+                        },
+                    },
+                ],
+            },
+        },
+        {
+            $addFields: {
+                owner: {
+                    $first: "$owner"
+                },
+            },
+        },
+        {
+            $sort: {
+                [sortBy]: sortType === 'asc' ? 1 : -1
+            },
+        },
+        { $skip: (parseInt(page) - 1) * parseInt(limit) },
+        { $limit: parseInt(limit) },
+
+    ]
+
+    const videos = await Video.aggregate(Pipeline)
+    if(!videos?.length){
+        throw new ApiError(400,"Video Not Found")
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+            videos,
+            totalVideos,
+            currentPage: parseInt(page),
+            totalPages: Math.ceil(totalVideos / limit),
+            },
+            "Videos Fetched Successfully"
+        )
+    )
+
+
 })
 
 // publish a video
@@ -228,6 +292,7 @@ const togglePublishStatus = handler(async(req,res)=>{
 
 // export statements
 export {
+    getAllVideos,
     publishVideo,
     getVideoById,
     updateVideo,
